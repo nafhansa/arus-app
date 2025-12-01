@@ -604,7 +604,7 @@ function SystemSimulation() {
                           transition={{ delay: 0.3 }}
                           className="text-xs text-muted-foreground mt-1 block"
                         >
-                          {new Date().toLocaleTimeString()} - Step {idx + 1}/{currentSim.length}
+                          Step {idx + 1}/{currentSim.length}
                         </motion.span>
                       </div>
                     </motion.div>
