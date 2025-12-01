@@ -24,7 +24,8 @@ import {
   Users,
   RotateCcw,
 } from "lucide-react"
-import ThreeDCanvas from "./three-d-canvas"
+import dynamic from "next/dynamic"
+const ThreeDCanvas = dynamic(() => import("./three-d-canvas"), { ssr: false })
 
 interface LandingPageProps {
   onLaunchConsole: () => void
