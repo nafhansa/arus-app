@@ -1,5 +1,8 @@
 "use client"
 
+export const dynamic = "force-dynamic"
+export const revalidate = 0
+
 import { useState } from "react"
 import { ThemeProvider } from "@/contexts/theme-context"
 import LandingPage from "@/components/landing-page"
