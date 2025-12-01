@@ -10,7 +10,7 @@ import DashboardPage from "@/components/dashboard-page"
 type ViewType = "landing" | "login" | "register" | "dashboard"
 
 function AppContent() {
-  const [view, setView] = useState<ViewType>("login")
+  const [view, setView] = useState<ViewType>("landing")
   const [user, setUser] = useState<{ name: string; email: string } | null>(null)
 
   const goToLogin = () => setView("login")

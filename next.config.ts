@@ -15,6 +15,15 @@ const nextConfig: NextConfig = {
   async headers() {
     return [{ source: "/(.*)", headers: securityHeaders }]
   },
+  webpack: (config) => {
+    config.resolve = config.resolve || {}
+    config.resolve.alias = {
+      ...(config.resolve.alias || {}),
+      react: require.resolve("react"),
+      "react-dom": require.resolve("react-dom"),
+    }
+    return config
+  },
 }
 
 export default nextConfig
