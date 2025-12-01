@@ -1,8 +1,8 @@
 "use client"
 
 import { useState } from "react"
+import dynamic from "next/dynamic"
 import { ThemeProvider } from "@/contexts/theme-context"
-import LandingPage from "@/components/landing-page"
 import LoginPage from "@/components/login-page"
 import RegisterPage from "@/components/register-page"
 import DashboardPage from "@/components/dashboard-page"
@@ -48,4 +48,4 @@ export default function AppContainer() {
     </ThemeProvider>
   )
 }
-
+const LandingPage = dynamic(() => import("@/components/landing-page"), { ssr: false })
