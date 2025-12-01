@@ -891,9 +891,7 @@ export default function LandingPage({ onLaunchConsole }: LandingPageProps) {
                 transition={{ duration: 20, repeat: Number.POSITIVE_INFINITY, ease: "linear" }}
               />
 
-              <div className="absolute inset-[10%]">
-                <ThreeDCanvas />
-              </div>
+              <div className="absolute inset-[10%]" />
             </motion.div>
           </div>
         </div>
