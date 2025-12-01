@@ -14,26 +14,37 @@ const ThemeContext = createContext<ThemeContextType | undefined>(undefined)
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setThemeState] = useState<Theme>("dark")
+  const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
+    setMounted(true)
     // Check for saved preference or system preference
-    const savedTheme = localStorage.getItem("arus-theme") as Theme | null
-    if (savedTheme) {
-      setThemeState(savedTheme)
-    } else if (window.matchMedia("(prefers-color-scheme: dark)").matches) {
-      setThemeState("dark")
+    try {
+      const savedTheme = localStorage.getItem("arus-theme") as Theme | null
+      if (savedTheme) {
+        setThemeState(savedTheme)
+      } else if (typeof window !== 'undefined' && window.matchMedia("(prefers-color-scheme: dark)").matches) {
+        setThemeState("dark")
+      }
+    } catch {
+      // localStorage not available
     }
   }, [])
 
   useEffect(() => {
+    if (!mounted) return
     // Apply theme to document
     if (theme === "dark") {
       document.documentElement.classList.add("dark")
     } else {
       document.documentElement.classList.remove("dark")
     }
-    localStorage.setItem("arus-theme", theme)
-  }, [theme])
+    try {
+      localStorage.setItem("arus-theme", theme)
+    } catch {
+      // localStorage not available
+    }
+  }, [theme, mounted])
 
   const toggleTheme = () => {
     setThemeState((prev) => (prev === "dark" ? "light" : "dark"))

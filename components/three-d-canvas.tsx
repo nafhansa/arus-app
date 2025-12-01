@@ -2,7 +2,7 @@
 
 import { Canvas, useFrame } from "@react-three/fiber"
 import { OrbitControls, PerspectiveCamera, Float, Sparkles } from "@react-three/drei"
-import { useRef, useMemo } from "react"
+import { useRef, useMemo, useState, useEffect } from "react"
 import * as THREE from "three"
 
 function RotatingMesh() {
@@ -25,7 +25,8 @@ function RotatingMesh() {
   })
 
   // Create custom point cloud geometry
-  const particlePositions = useMemo(() => {
+  const particleGeometry = useMemo(() => {
+    const geometry = new THREE.BufferGeometry()
     const positions = new Float32Array(500 * 3)
     for (let i = 0; i < 500; i++) {
       const radius = 2 + Math.random() * 1
@@ -35,7 +36,8 @@ function RotatingMesh() {
       positions[i * 3 + 1] = radius * Math.sin(phi) * Math.sin(theta)
       positions[i * 3 + 2] = radius * Math.cos(phi)
     }
-    return positions
+    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3))
+    return geometry
   }, [])
 
   return (
@@ -68,10 +70,7 @@ function RotatingMesh() {
         </mesh>
 
         {/* Point cloud ring */}
-        <points>
-          <bufferGeometry>
-            <bufferAttribute attach="attributes-position" args={[particlePositions, 3]} />
-          </bufferGeometry>
+        <points geometry={particleGeometry}>
           <pointsMaterial color="#3B8FF3" size={0.03} transparent opacity={0.6} sizeAttenuation />
         </points>
 
@@ -130,6 +129,20 @@ function OrbitalRings() {
 }
 
 export default function ThreeDCanvas() {
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  if (!mounted) {
+    return (
+      <div className="w-full h-full flex items-center justify-center">
+        <div className="w-16 h-16 border-4 border-primary/30 border-t-primary rounded-full animate-spin" />
+      </div>
+    )
+  }
+
   return (
     <Canvas className="w-full h-full" dpr={[1, 2]} style={{ width: "100%", height: "100%" }}>
       <PerspectiveCamera makeDefault position={[0, 0, 8]} fov={45} />

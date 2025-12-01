@@ -31,12 +31,27 @@ export default function RegisterPage({ onRegister, onLoginLink }: RegisterPagePr
     password: "",
     country: "Indonesia",
   })
-
   const [error, setError] = useState<string | null>(null)
+  const [csrf, setCsrf] = useState<string>("")
+
+  useEffect(() => {
+    fetch('/api/auth/csrf')
+      .then(r => r.json())
+      .then(j => setCsrf(j.token))
+      .catch(() => {})
+  }, [])
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
-    const res = await fetch('/api/auth/register', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf }, body: JSON.stringify(formData) })
+    const res = await fetch('/api/auth/register', { 
+      method: 'POST', 
+      headers: { 
+        'Content-Type': 'application/json', 
+        'X-CSRF-Token': csrf 
+      }, 
+      body: JSON.stringify(formData) 
+    })
     if (!res.ok) {
       setError('Registration failed')
       return
@@ -187,7 +202,3 @@ export default function RegisterPage({ onRegister, onLoginLink }: RegisterPagePr
     </div>
   )
 }
-  const [csrf, setCsrf] = useState<string>("")
-  useEffect(() => {
-    fetch('/api/auth/csrf').then(r => r.json()).then(j => setCsrf(j.token)).catch(() => {})
-  }, [])

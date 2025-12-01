@@ -14,12 +14,27 @@ interface LoginPageProps {
 export default function LoginPage({ onLogin, onRegisterLink }: LoginPageProps) {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
-
   const [error, setError] = useState<string | null>(null)
+  const [csrf, setCsrf] = useState<string>("")
+
+  useEffect(() => {
+    fetch('/api/auth/csrf')
+      .then(r => r.json())
+      .then(j => setCsrf(j.token))
+      .catch(() => {})
+  }, [])
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
-    const res = await fetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf }, body: JSON.stringify({ email, password }) })
+    const res = await fetch('/api/auth/login', { 
+      method: 'POST', 
+      headers: { 
+        'Content-Type': 'application/json', 
+        'X-CSRF-Token': csrf 
+      }, 
+      body: JSON.stringify({ email, password }) 
+    })
     if (!res.ok) {
       setError('Invalid credentials')
       return
@@ -119,7 +134,3 @@ export default function LoginPage({ onLogin, onRegisterLink }: LoginPageProps) {
     </div>
   )
 }
-  const [csrf, setCsrf] = useState<string>("")
-  useEffect(() => {
-    fetch('/api/auth/csrf').then(r => r.json()).then(j => setCsrf(j.token)).catch(() => {})
-  }, [])
