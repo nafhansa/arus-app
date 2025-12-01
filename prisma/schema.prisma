@@ -1,0 +1,71 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id           Int                @id @default(autoincrement())
+  email        String             @unique
+  businessName String?
+  passwordHash String?
+  country      String?
+  role         String             @default("user")
+  createdAt    DateTime           @default(now())
+
+  recipes      AutomationRecipe[]
+  insights     Insight[]
+  revenues     RevenueData[]
+}
+
+model AutomationRecipe {
+  id        Int      @id @default(autoincrement())
+  title     String
+  enabled   Boolean  @default(false)
+  config    Json
+  category  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  userId Int
+  user   User   @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+}
+
+enum InsightType {
+  warning
+  success
+  info
+}
+
+model Insight {
+  id        Int         @id @default(autoincrement())
+  title     String
+  type      InsightType
+  message   String
+  action    String?
+  createdAt DateTime    @default(now())
+
+  userId Int
+  user   User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+}
+
+model RevenueData {
+  id        Int      @id @default(autoincrement())
+  month     String
+  revenue   Int
+  cost      Int
+  createdAt DateTime @default(now())
+
+  userId Int
+  user   User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+}

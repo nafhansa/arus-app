@@ -1,26 +1,158 @@
 @import "tailwindcss";
+@import "tw-animate-css";
 
+@custom-variant dark (&:is(.dark *));
+
+/* Light mode as default - beautiful, soft, and elegant */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #f5f7fa;
+  --foreground: #1a1a2e;
+  --card: #ffffff;
+  --card-foreground: #1a1a2e;
+  --popover: #ffffff;
+  --popover-foreground: #1a1a2e;
+  --primary: #f29f67;
+  --primary-foreground: #ffffff;
+  --secondary: #34b1aa;
+  --secondary-foreground: #ffffff;
+  --muted: #f0f4f8;
+  --muted-foreground: #6b7280;
+  --accent: #3b8ff3;
+  --accent-foreground: #ffffff;
+  --destructive: #ef4444;
+  --destructive-foreground: #ffffff;
+  --border: #e5e7eb;
+  --input: #f9fafb;
+  --ring: #f29f67;
+  --chart-1: #f29f67;
+  --chart-2: #34b1aa;
+  --chart-3: #3b8ff3;
+  --chart-4: #f97316;
+  --chart-5: #8b5cf6;
+  --radius: 0.625rem;
+  --sidebar: #ffffff;
+  --sidebar-foreground: #1a1a2e;
+  --sidebar-primary: #f29f67;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #34b1aa;
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: #e5e7eb;
+  --sidebar-ring: #f29f67;
+  /* Custom A.R.U.S. colors */
+  --arus-navy: #1e1e2c;
+  --arus-orange: #f29f67;
+  --arus-teal: #34b1aa;
+  --arus-blue: #3b8ff3;
+  /* Light mode glass effect */
+  --glass-bg: rgba(255, 255, 255, 0.7);
+  --glass-border: rgba(0, 0, 0, 0.08);
+  /* Light mode specific */
+  --surface-elevated: #ffffff;
+  --surface-sunken: #f0f4f8;
+  --shadow-soft: 0 2px 8px rgba(0, 0, 0, 0.04), 0 4px 16px rgba(0, 0, 0, 0.04);
+  --shadow-medium: 0 4px 12px rgba(0, 0, 0, 0.06), 0 8px 24px rgba(0, 0, 0, 0.06);
+  --shadow-strong: 0 8px 24px rgba(0, 0, 0, 0.08), 0 16px 48px rgba(0, 0, 0, 0.08);
+}
+
+.dark {
+  --background: #1e1e2c;
+  --foreground: #ffffff;
+  --card: #2a2a3e;
+  --card-foreground: #ffffff;
+  --popover: #2a2a3e;
+  --popover-foreground: #ffffff;
+  --primary: #f29f67;
+  --primary-foreground: #1e1e2c;
+  --secondary: #34b1aa;
+  --secondary-foreground: #ffffff;
+  --muted: #3a3a50;
+  --muted-foreground: #a0a0b0;
+  --accent: #3b8ff3;
+  --accent-foreground: #ffffff;
+  --destructive: #ef4444;
+  --destructive-foreground: #ffffff;
+  --border: #3a3a50;
+  --input: #2a2a3e;
+  --ring: #f29f67;
+  --chart-1: #f29f67;
+  --chart-2: #34b1aa;
+  --chart-3: #3b8ff3;
+  --chart-4: #f97316;
+  --chart-5: #8b5cf6;
+  --sidebar: #2a2a3e;
+  --sidebar-foreground: #ffffff;
+  --sidebar-primary: #f29f67;
+  --sidebar-primary-foreground: #1e1e2c;
+  --sidebar-accent: #34b1aa;
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: #3a3a50;
+  --sidebar-ring: #f29f67;
+  /* Dark mode glass effect */
+  --glass-bg: rgba(255, 255, 255, 0.05);
+  --glass-border: rgba(255, 255, 255, 0.1);
+  /* Dark mode specific */
+  --surface-elevated: #2a2a3e;
+  --surface-sunken: #1a1a28;
+  --shadow-soft: 0 2px 8px rgba(0, 0, 0, 0.2);
+  --shadow-medium: 0 4px 16px rgba(0, 0, 0, 0.3);
+  --shadow-strong: 0 8px 32px rgba(0, 0, 0, 0.4);
 }
 
 @theme inline {
+  --font-sans: "Geist", "Geist Fallback";
+  --font-mono: "Geist Mono", "Geist Mono Fallback";
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* Beautiful card shadows for light mode */
+.card-elevated {
+  box-shadow: var(--shadow-soft);
+}
+
+.card-elevated:hover {
+  box-shadow: var(--shadow-medium);
 }
