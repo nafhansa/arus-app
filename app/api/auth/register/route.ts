@@ -38,16 +38,32 @@ async function createInitialDataForUser(userId: number) {
 
 export async function POST(req: NextRequest) {
   const ip = req.headers.get("x-forwarded-for") || "unknown"
-  if (!limit(`register:${ip}`)) return NextResponse.json({ error: "Rate limited" }, { status: 429 })
+  if (!limit(`register:${ip}`)) return NextResponse.json({ error: "Too many attempts. Please try again later." }, { status: 429 })
   const body = await req.json().catch(() => null)
   const parsed = registerSchema.safeParse(body)
-  if (!parsed.success) return NextResponse.json({ error: "Invalid data" }, { status: 400 })
+  if (!parsed.success) {
+    // Get first error message
+    const firstError = parsed.error.errors[0]
+    let errorMessage = "Invalid data"
+    if (firstError) {
+      if (firstError.path.includes("password")) {
+        errorMessage = "Password must be at least 8 characters"
+      } else if (firstError.path.includes("email")) {
+        errorMessage = "Please enter a valid email address"
+      } else if (firstError.path.includes("businessName")) {
+        errorMessage = "Business name is required"
+      } else {
+        errorMessage = firstError.message
+      }
+    }
+    return NextResponse.json({ error: errorMessage }, { status: 400 })
+  }
   const { email, password, businessName, country } = parsed.data
   const csrfHeader = req.headers.get("x-csrf-token")
   const csrfCookie = (await cookies()).get("csrf_token")?.value
-  if (!csrfHeader || !csrfCookie || csrfHeader !== csrfCookie) return NextResponse.json({ error: "CSRF" }, { status: 403 })
+  if (!csrfHeader || !csrfCookie || csrfHeader !== csrfCookie) return NextResponse.json({ error: "Session expired. Please refresh the page." }, { status: 403 })
   const exists = await prisma.user.findUnique({ where: { email } })
-  if (exists?.passwordHash) return NextResponse.json({ error: "Email already registered" }, { status: 409 })
+  if (exists?.passwordHash) return NextResponse.json({ error: "Email already registered. Please login instead." }, { status: 409 })
   const passwordHash = await hashPassword(password)
   
   const isNewUser = !exists

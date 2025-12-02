@@ -39,6 +39,17 @@ export default function RegisterPage({ onRegisterSuccess, onLoginLink }: Registe
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
+
+    // Client-side validation
+    if (formData.businessName.trim().length < 1) {
+      setError('Business name is required')
+      return
+    }
+    if (formData.password.length < 8) {
+      setError('Password must be at least 8 characters')
+      return
+    }
+
     setIsLoading(true)
 
     const result = await register(formData)
@@ -140,10 +151,12 @@ export default function RegisterPage({ onRegisterSuccess, onLoginLink }: Registe
                   value={formData.password}
                   onChange={handleChange}
                   placeholder="••••••••"
+                  minLength={8}
                   className="w-full pl-10 pr-4 py-3 bg-input border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary transition-colors"
                   required
                 />
               </div>
+              <p className="text-xs text-muted-foreground mt-1">Minimum 8 characters</p>
             </div>
 
             {/* Country Dropdown */}
