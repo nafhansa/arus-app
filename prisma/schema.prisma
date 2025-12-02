@@ -27,10 +27,10 @@ model User {
 
 model Integration {
   id          Int      @id @default(autoincrement())
-  type        String   // whatsapp, email, sms, telegram, shopee, tokopedia
+  provider    String   // WHATSAPP, TELEGRAM, SMS_GATEWAY, EMAIL, SHOPEE, TOKOPEDIA, LAZADA, TIKTOK
   name        String   // Display name e.g. "WhatsApp Bisnis Utama"
-  config      Json     // Stores credentials/settings based on type
-  isConnected Boolean  @default(false)
+  credentials Json     // Stores API keys, tokens, secrets flexibly
+  isActive    Boolean  @default(false)
   lastSyncAt  DateTime?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -38,8 +38,8 @@ model Integration {
   userId Int
   user   User @relation(fields: [userId], references: [id])
 
+  @@unique([userId, provider])
   @@index([userId])
-  @@index([type])
 }
 
 model AutomationRecipe {

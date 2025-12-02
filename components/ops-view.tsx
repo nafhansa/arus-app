@@ -39,9 +39,9 @@ type AutomationConfig = {
 
 type Integration = {
   id: number
-  type: string
+  provider: string
   name: string
-  isConnected: boolean
+  isActive: boolean
 }
 
 type UIRecipe = {
@@ -159,11 +159,11 @@ export default function OpsView() {
     const template = AUTOMATION_TEMPLATES[recipe.title]
     if (!template?.requiredIntegration) return true
     return template.requiredIntegration.some((type) =>
-      integrations.some((i) => i.type === type && i.isConnected)
+      integrations.some((i) => i.provider.toLowerCase() === type && i.isActive)
     )
   }
 
-  const connectedIntegrations = integrations.filter((i) => i.isConnected)
+  const connectedIntegrations = integrations.filter((i) => i.isActive)
 
   const toggleRecipe = async (id: number, enabled: boolean) => {
     await updateAutomation(id, { enabled: !enabled })
@@ -440,14 +440,14 @@ export default function OpsView() {
                     >
                       <option value="">-- Select Integration --</option>
                       {integrations
-                        .filter((i) => currentTemplate.requiredIntegration?.includes(i.type))
+                        .filter((i) => currentTemplate.requiredIntegration?.includes(i.provider.toLowerCase()))
                         .map((integration) => (
                           <option key={integration.id} value={integration.id}>
-                            {integration.name} {integration.isConnected ? "✓" : "(Not Connected)"}
+                            {integration.name} {integration.isActive ? "✓" : "(Not Connected)"}
                           </option>
                         ))}
                     </select>
-                    {integrations.filter((i) => currentTemplate.requiredIntegration?.includes(i.type)).length === 0 && (
+                    {integrations.filter((i) => currentTemplate.requiredIntegration?.includes(i.provider.toLowerCase())).length === 0 && (
                       <p className="text-xs text-[#F29F67] mt-2">
                         No matching integration found. Go to Integrations to add one.
                       </p>

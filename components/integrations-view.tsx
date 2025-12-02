@@ -4,75 +4,41 @@ import { useState, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import {
   Link2,
-  Plus,
-  Trash2,
-  Check,
   X,
+  Check,
   Loader2,
   Eye,
   EyeOff,
   RefreshCw,
   AlertCircle,
-  Settings,
+  HelpCircle,
+  ExternalLink,
+  Lightbulb,
+  ChevronRight,
+  Sparkles,
+  Shield,
 } from "lucide-react"
 import { useAuth } from "@/contexts/auth-context"
-
-interface IntegrationConfig {
-  [key: string]: string
-}
+import { INTEGRATION_PROVIDERS, getProviderConfig } from "@/lib/integration-guides"
 
 interface Integration {
   id: number
-  type: string
+  provider: string
   name: string
-  config: IntegrationConfig
-  isConnected: boolean
+  credentials: Record<string, string>
+  isActive: boolean
   lastSyncAt: string | null
   createdAt: string
 }
 
-interface IntegrationType {
-  name: string
-  icon: string
-  fields: string[]
-  description: string
-}
-
-const FIELD_LABELS: Record<string, string> = {
-  phoneNumber: "Phone Number",
-  apiKey: "API Key",
-  businessId: "Business ID",
-  smtpHost: "SMTP Host",
-  smtpPort: "SMTP Port",
-  smtpUser: "SMTP Username",
-  smtpPass: "SMTP Password",
-  fromEmail: "From Email",
-  fromName: "From Name",
-  provider: "Provider (twilio/nexmo)",
-  senderId: "Sender ID",
-  botToken: "Bot Token",
-  chatId: "Chat ID",
-  shopId: "Shop ID",
-  accessToken: "Access Token",
-  refreshToken: "Refresh Token",
-  clientId: "Client ID",
-  clientSecret: "Client Secret",
-  sellerId: "Seller ID",
-}
-
-const SENSITIVE_FIELDS = ["apiKey", "smtpPass", "accessToken", "refreshToken", "clientSecret", "botToken"]
-
 export default function IntegrationsView() {
   const { user } = useAuth()
   const [integrations, setIntegrations] = useState<Integration[]>([])
-  const [availableTypes, setAvailableTypes] = useState<Record<string, IntegrationType>>({})
   const [isLoading, setIsLoading] = useState(true)
-  const [showAddModal, setShowAddModal] = useState(false)
-  const [editingId, setEditingId] = useState<number | null>(null)
-  const [selectedType, setSelectedType] = useState<string | null>(null)
-  const [formData, setFormData] = useState<{ name: string; config: IntegrationConfig }>({
+  const [selectedProvider, setSelectedProvider] = useState<string | null>(null)
+  const [formData, setFormData] = useState<{ name: string; credentials: Record<string, string> }>({
     name: "",
-    config: {},
+    credentials: {},
   })
   const [showSecrets, setShowSecrets] = useState<Record<string, boolean>>({})
   const [isSaving, setIsSaving] = useState(false)
@@ -89,7 +55,6 @@ export default function IntegrationsView() {
         if (res.ok) {
           const data = await res.json()
           setIntegrations(data.integrations || [])
-          setAvailableTypes(data.availableTypes || {})
         }
       } catch (error) {
         console.error("Failed to fetch integrations:", error)
@@ -101,55 +66,64 @@ export default function IntegrationsView() {
     fetchIntegrations()
   }, [user])
 
-  const resetForm = () => {
-    setSelectedType(null)
-    setFormData({ name: "", config: {} })
-    setShowSecrets({})
-    setShowAddModal(false)
-    setEditingId(null)
+  const getIntegrationStatus = (provider: string) => {
+    const integration = integrations.find((i) => i.provider === provider)
+    return integration?.isActive ? "connected" : integration ? "configured" : "not_configured"
   }
 
-  const handleSelectType = (type: string) => {
-    setSelectedType(type)
-    const typeInfo = availableTypes[type]
-    const initialConfig: IntegrationConfig = {}
-    typeInfo.fields.forEach((field) => {
-      initialConfig[field] = ""
+  const openConfigModal = (provider: string) => {
+    const config = getProviderConfig(provider)
+    if (!config) return
+
+    const existingIntegration = integrations.find((i) => i.provider === provider)
+
+    const initialCredentials: Record<string, string> = {}
+    config.fields.forEach((field) => {
+      initialCredentials[field.key] = existingIntegration?.credentials?.[field.key] || ""
     })
+
     setFormData({
-      name: typeInfo.name,
-      config: initialConfig,
+      name: existingIntegration?.name || config.name,
+      credentials: initialCredentials,
     })
+    setSelectedProvider(provider)
+    setShowSecrets({})
+  }
+
+  const closeModal = () => {
+    setSelectedProvider(null)
+    setFormData({ name: "", credentials: {} })
+    setShowSecrets({})
   }
 
   const handleSave = async () => {
-    if (!selectedType) return
+    if (!selectedProvider) return
 
     setIsSaving(true)
     try {
-      const endpoint = "/api/integrations"
-      const method = editingId ? "PUT" : "POST"
-      const body = editingId
-        ? { id: editingId, ...formData }
-        : { type: selectedType, ...formData }
-
-      const res = await fetch(endpoint, {
-        method,
+      const res = await fetch("/api/integrations", {
+        method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
+        body: JSON.stringify({
+          provider: selectedProvider,
+          name: formData.name,
+          credentials: formData.credentials,
+        }),
       })
 
       if (res.ok) {
         const data = await res.json()
-        if (editingId) {
-          setIntegrations((prev) =>
-            prev.map((i) => (i.id === editingId ? data.integration : i))
-          )
-        } else {
-          setIntegrations((prev) => [data.integration, ...prev])
-        }
-        setMessage({ type: "success", text: editingId ? "Integration updated!" : "Integration added!" })
-        resetForm()
+        setIntegrations((prev) => {
+          const existing = prev.findIndex((i) => i.provider === selectedProvider)
+          if (existing >= 0) {
+            const updated = [...prev]
+            updated[existing] = data.integration
+            return updated
+          }
+          return [data.integration, ...prev]
+        })
+        setMessage({ type: "success", text: "Integration saved successfully!" })
+        closeModal()
       } else {
         const err = await res.json()
         setMessage({ type: "error", text: err.error || "Failed to save" })
@@ -162,49 +136,51 @@ export default function IntegrationsView() {
     }
   }
 
-  const handleDelete = async (id: number) => {
-    if (!confirm("Are you sure you want to delete this integration?")) return
+  const handleDelete = async (provider: string) => {
+    const integration = integrations.find((i) => i.provider === provider)
+    if (!integration) return
+
+    if (!confirm("Are you sure you want to disconnect this integration?")) return
 
     try {
-      const res = await fetch(`/api/integrations?id=${id}`, { method: "DELETE" })
+      const res = await fetch(`/api/integrations?id=${integration.id}`, { method: "DELETE" })
       if (res.ok) {
-        setIntegrations((prev) => prev.filter((i) => i.id !== id))
-        setMessage({ type: "success", text: "Integration deleted" })
+        setIntegrations((prev) => prev.filter((i) => i.provider !== provider))
+        setMessage({ type: "success", text: "Integration disconnected" })
+        closeModal()
       }
     } catch {
-      setMessage({ type: "error", text: "Failed to delete" })
+      setMessage({ type: "error", text: "Failed to disconnect" })
     }
     setTimeout(() => setMessage(null), 3000)
   }
 
-  const handleEdit = (integration: Integration) => {
-    setEditingId(integration.id)
-    setSelectedType(integration.type)
-    setFormData({
-      name: integration.name,
-      config: integration.config as IntegrationConfig,
-    })
-    setShowAddModal(true)
-  }
+  const handleTestConnection = async (provider: string) => {
+    const integration = integrations.find((i) => i.provider === provider)
+    if (!integration) return
 
-  const handleTestConnection = async (id: number) => {
-    // Simulate connection test
-    setIntegrations((prev) =>
-      prev.map((i) => (i.id === id ? { ...i, isConnected: true, lastSyncAt: new Date().toISOString() } : i))
-    )
-    
-    // Update in database
-    await fetch("/api/integrations", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id, isConnected: true }),
-    })
-    
-    setMessage({ type: "success", text: "Connection successful!" })
+    try {
+      await fetch("/api/integrations", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: integration.id, isActive: true }),
+      })
+
+      setIntegrations((prev) =>
+        prev.map((i) =>
+          i.provider === provider ? { ...i, isActive: true, lastSyncAt: new Date().toISOString() } : i
+        )
+      )
+      setMessage({ type: "success", text: "Connection successful!" })
+    } catch {
+      setMessage({ type: "error", text: "Connection failed" })
+    }
     setTimeout(() => setMessage(null), 3000)
   }
 
-  const connectedCount = integrations.filter((i) => i.isConnected).length
+  const providerList = Object.entries(INTEGRATION_PROVIDERS)
+  const connectedCount = integrations.filter((i) => i.isActive).length
+  const currentConfig = selectedProvider ? getProviderConfig(selectedProvider) : null
 
   return (
     <div className="space-y-8">
@@ -215,23 +191,14 @@ export default function IntegrationsView() {
             <Link2 className="w-7 h-7 text-white" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-foreground">Integrations</h1>
+            <h1 className="text-2xl font-bold text-foreground">Integrations Hub</h1>
             <p className="text-muted-foreground">Connect your business tools and platforms</p>
           </div>
         </div>
-        <motion.button
-          onClick={() => setShowAddModal(true)}
-          className="px-4 py-2 rounded-xl bg-primary text-primary-foreground flex items-center gap-2 shadow-md"
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.98 }}
-        >
-          <Plus className="w-5 h-5" />
-          Add Integration
-        </motion.button>
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="p-4 rounded-xl bg-card border border-border">
           <div className="text-2xl font-bold text-[#34B1AA]">{connectedCount}</div>
           <div className="text-sm text-muted-foreground">Connected</div>
@@ -241,22 +208,26 @@ export default function IntegrationsView() {
           <div className="text-sm text-muted-foreground">Pending Setup</div>
         </div>
         <div className="p-4 rounded-xl bg-card border border-border">
-          <div className="text-2xl font-bold text-[#3B8FF3]">{Object.keys(availableTypes).length}</div>
-          <div className="text-sm text-muted-foreground">Available Types</div>
+          <div className="text-2xl font-bold text-[#3B8FF3]">{providerList.length}</div>
+          <div className="text-sm text-muted-foreground">Available</div>
+        </div>
+        <div className="p-4 rounded-xl bg-card border border-border">
+          <div className="text-2xl font-bold text-muted-foreground">—</div>
+          <div className="text-sm text-muted-foreground">Syncs Today</div>
         </div>
       </div>
 
-      {/* Message */}
+      {/* Toast Message */}
       <AnimatePresence>
         {message && (
           <motion.div
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0 }}
+            exit={{ opacity: 0, y: -10 }}
             className={`p-3 rounded-lg flex items-center gap-2 ${
               message.type === "success"
                 ? "bg-[#34B1AA]/20 text-[#34B1AA]"
-                : "bg-destructive/20 text-destructive"
+                : "bg-red-500/20 text-red-400"
             }`}
           >
             {message.type === "success" ? <Check className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
@@ -265,195 +236,166 @@ export default function IntegrationsView() {
         )}
       </AnimatePresence>
 
-      {/* Integrations List */}
+      {/* Integration Grid */}
       {isLoading ? (
-        <div className="flex items-center justify-center py-20">
-          <Loader2 className="w-8 h-8 animate-spin text-primary" />
-        </div>
-      ) : integrations.length === 0 ? (
-        <div className="text-center py-16 bg-card rounded-xl border border-border">
-          <Link2 className="w-16 h-16 mx-auto mb-4 text-muted-foreground opacity-50" />
-          <h3 className="text-lg font-semibold mb-2">No Integrations Yet</h3>
-          <p className="text-muted-foreground mb-4">
-            Connect WhatsApp, Email, SMS, or marketplace platforms to enable automations
-          </p>
-          <motion.button
-            onClick={() => setShowAddModal(true)}
-            className="px-4 py-2 rounded-lg bg-primary text-primary-foreground"
-            whileHover={{ scale: 1.02 }}
-          >
-            Add Your First Integration
-          </motion.button>
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
         </div>
       ) : (
-        <div className="grid gap-4">
-          {integrations.map((integration) => {
-            const typeInfo = availableTypes[integration.type]
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          {providerList.map(([key, config]) => {
+            const status = getIntegrationStatus(key)
+            const integration = integrations.find((i) => i.provider === key)
+
             return (
               <motion.div
-                key={integration.id}
-                className={`p-4 rounded-xl border transition-all ${
-                  integration.isConnected
-                    ? "bg-card border-[#34B1AA]/30"
-                    : "bg-card border-border"
+                key={key}
+                whileHover={{ y: -2 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => openConfigModal(key)}
+                className={`relative p-5 rounded-xl border cursor-pointer transition-all hover:scale-[1.02] ${
+                  status === "connected"
+                    ? "bg-[#34B1AA]/10 border-[#34B1AA]/30"
+                    : status === "configured"
+                    ? "bg-[#F29F67]/10 border-[#F29F67]/30"
+                    : "bg-card border-border hover:bg-muted/50"
                 }`}
-                layout
               >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-xl bg-muted flex items-center justify-center text-2xl">
-                      {typeInfo?.icon || "🔗"}
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <h4 className="font-semibold text-foreground">{integration.name}</h4>
-                        {integration.isConnected ? (
-                          <span className="px-2 py-0.5 rounded-full bg-[#34B1AA]/20 text-[#34B1AA] text-xs">
-                            Connected
-                          </span>
-                        ) : (
-                          <span className="px-2 py-0.5 rounded-full bg-[#F29F67]/20 text-[#F29F67] text-xs">
-                            Not Connected
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-sm text-muted-foreground">{typeInfo?.name || integration.type}</p>
-                      {integration.lastSyncAt && (
-                        <p className="text-xs text-muted-foreground mt-1">
-                          Last sync: {new Date(integration.lastSyncAt).toLocaleString()}
-                        </p>
-                      )}
-                    </div>
+                {/* Status Badge */}
+                <div className="absolute top-3 right-3">
+                  {status === "connected" && (
+                    <span className="px-2 py-1 rounded-full bg-[#34B1AA]/20 text-[#34B1AA] text-xs flex items-center gap-1">
+                      <Check className="w-3 h-3" /> Connected
+                    </span>
+                  )}
+                  {status === "configured" && (
+                    <span className="px-2 py-1 rounded-full bg-[#F29F67]/20 text-[#F29F67] text-xs">
+                      Pending
+                    </span>
+                  )}
+                </div>
+
+                {/* Icon & Name */}
+                <div className="flex items-center gap-3 mb-3">
+                  <div
+                    className="w-10 h-10 rounded-lg flex items-center justify-center text-xl"
+                    style={{ backgroundColor: `${config.color}20` }}
+                  >
+                    {config.icon}
                   </div>
-                  <div className="flex items-center gap-2">
-                    <motion.button
-                      onClick={() => handleTestConnection(integration.id)}
-                      className="p-2 rounded-lg bg-[#34B1AA]/10 hover:bg-[#34B1AA]/20 text-[#34B1AA]"
-                      whileHover={{ scale: 1.05 }}
-                      title="Test Connection"
-                    >
-                      <RefreshCw className="w-4 h-4" />
-                    </motion.button>
-                    <motion.button
-                      onClick={() => handleEdit(integration)}
-                      className="p-2 rounded-lg bg-muted hover:bg-muted/80"
-                      whileHover={{ scale: 1.05 }}
-                      title="Edit"
-                    >
-                      <Settings className="w-4 h-4 text-muted-foreground" />
-                    </motion.button>
-                    <motion.button
-                      onClick={() => handleDelete(integration.id)}
-                      className="p-2 rounded-lg hover:bg-destructive/10 text-destructive"
-                      whileHover={{ scale: 1.05 }}
-                      title="Delete"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </motion.button>
+                  <div>
+                    <h3 className="font-semibold text-foreground">{config.name}</h3>
+                    {integration?.lastSyncAt && (
+                      <p className="text-xs text-muted-foreground">
+                        Last sync: {new Date(integration.lastSyncAt).toLocaleDateString()}
+                      </p>
+                    )}
                   </div>
                 </div>
+
+                {/* Description */}
+                <p className="text-sm text-muted-foreground line-clamp-2">{config.guide.description}</p>
               </motion.div>
             )
           })}
         </div>
       )}
 
-      {/* Add/Edit Modal */}
+      {/* Configuration Modal with Tutor Panel */}
       <AnimatePresence>
-        {showAddModal && (
+        {selectedProvider && currentConfig && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
-            onClick={resetForm}
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={closeModal}
           >
             <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
+              initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              className="w-full max-w-lg max-h-[90vh] overflow-y-auto p-6 rounded-2xl bg-card border border-border shadow-xl"
+              exit={{ scale: 0.95, opacity: 0 }}
               onClick={(e) => e.stopPropagation()}
+              className="bg-card border border-border rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden"
             >
               {/* Modal Header */}
-              <div className="flex items-center justify-between mb-6">
-                <h3 className="text-lg font-semibold">
-                  {editingId ? "Edit Integration" : selectedType ? "Configure Integration" : "Add Integration"}
-                </h3>
-                <button onClick={resetForm} className="p-2 rounded-lg hover:bg-muted">
+              <div className="p-6 border-b border-border flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div
+                    className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl"
+                    style={{ backgroundColor: `${currentConfig.color}20` }}
+                  >
+                    {currentConfig.icon}
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-bold text-foreground">{currentConfig.name}</h2>
+                    <p className="text-sm text-muted-foreground">Configure your integration</p>
+                  </div>
+                </div>
+                <button
+                  onClick={closeModal}
+                  className="p-2 rounded-lg hover:bg-muted transition-colors"
+                >
                   <X className="w-5 h-5" />
                 </button>
               </div>
 
-              {/* Step 1: Select Type */}
-              {!selectedType && (
-                <div className="grid grid-cols-2 gap-3">
-                  {Object.entries(availableTypes).map(([type, info]) => (
-                    <motion.button
-                      key={type}
-                      onClick={() => handleSelectType(type)}
-                      className="p-4 rounded-xl border border-border hover:border-primary hover:bg-primary/5 text-left transition-all"
-                      whileHover={{ scale: 1.02 }}
-                    >
-                      <div className="text-2xl mb-2">{info.icon}</div>
-                      <div className="font-medium text-foreground">{info.name}</div>
-                      <div className="text-xs text-muted-foreground mt-1">{info.description}</div>
-                    </motion.button>
-                  ))}
-                </div>
-              )}
+              {/* Split Content */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 divide-y lg:divide-y-0 lg:divide-x divide-border max-h-[60vh] overflow-y-auto">
+                {/* Left: Form */}
+                <div className="p-6 space-y-4">
+                  <h3 className="font-semibold text-foreground flex items-center gap-2">
+                    <Shield className="w-4 h-4 text-[#3B8FF3]" />
+                    Credentials
+                  </h3>
 
-              {/* Step 2: Configure */}
-              {selectedType && (
-                <div className="space-y-4">
-                  <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
-                    <div className="text-2xl">{availableTypes[selectedType]?.icon}</div>
-                    <div>
-                      <div className="font-medium">{availableTypes[selectedType]?.name}</div>
-                      <div className="text-xs text-muted-foreground">
-                        {availableTypes[selectedType]?.description}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Name */}
+                  {/* Integration Name */}
                   <div>
-                    <label className="text-sm text-muted-foreground mb-2 block">Display Name</label>
+                    <label className="block text-sm font-medium text-foreground mb-2">
+                      Display Name
+                    </label>
                     <input
                       type="text"
                       value={formData.name}
                       onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                      placeholder="e.g., WhatsApp Bisnis Utama"
-                      className="w-full px-4 py-3 rounded-xl bg-input border border-border"
+                      className="w-full px-4 py-3 rounded-lg bg-muted border border-border focus:border-[#3B8FF3] focus:ring-1 focus:ring-[#3B8FF3] outline-none transition-colors"
+                      placeholder="My WhatsApp Business"
                     />
                   </div>
 
-                  {/* Config Fields */}
-                  {availableTypes[selectedType]?.fields.map((field) => (
-                    <div key={field}>
-                      <label className="text-sm text-muted-foreground mb-2 block">
-                        {FIELD_LABELS[field] || field}
+                  {/* Dynamic Fields */}
+                  {currentConfig.fields.map((field) => (
+                    <div key={field.key}>
+                      <label className="block text-sm font-medium text-foreground mb-2">
+                        {field.label}
+                        {field.required && <span className="text-red-400 ml-1">*</span>}
                       </label>
                       <div className="relative">
                         <input
-                          type={SENSITIVE_FIELDS.includes(field) && !showSecrets[field] ? "password" : "text"}
-                          value={formData.config[field] || ""}
+                          type={field.type === "password" && !showSecrets[field.key] ? "password" : "text"}
+                          value={formData.credentials[field.key] || ""}
                           onChange={(e) =>
                             setFormData({
                               ...formData,
-                              config: { ...formData.config, [field]: e.target.value },
+                              credentials: { ...formData.credentials, [field.key]: e.target.value },
                             })
                           }
-                          placeholder={`Enter ${FIELD_LABELS[field] || field}`}
-                          className="w-full px-4 py-3 rounded-xl bg-input border border-border pr-12"
+                          placeholder={field.placeholder}
+                          className="w-full px-4 py-3 rounded-lg bg-muted border border-border focus:border-[#3B8FF3] focus:ring-1 focus:ring-[#3B8FF3] outline-none transition-colors pr-12"
                         />
-                        {SENSITIVE_FIELDS.includes(field) && (
+                        {field.type === "password" && (
                           <button
                             type="button"
-                            onClick={() => setShowSecrets({ ...showSecrets, [field]: !showSecrets[field] })}
-                            className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-muted-foreground"
+                            onClick={() =>
+                              setShowSecrets({ ...showSecrets, [field.key]: !showSecrets[field.key] })
+                            }
+                            className="absolute right-3 top-1/2 -translate-y-1/2 p-1 hover:bg-muted rounded"
                           >
-                            {showSecrets[field] ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                            {showSecrets[field.key] ? (
+                              <EyeOff className="w-4 h-4 text-muted-foreground" />
+                            ) : (
+                              <Eye className="w-4 h-4 text-muted-foreground" />
+                            )}
                           </button>
                         )}
                       </div>
@@ -463,24 +405,98 @@ export default function IntegrationsView() {
                   {/* Actions */}
                   <div className="flex gap-3 pt-4">
                     <button
-                      onClick={resetForm}
-                      className="flex-1 py-3 rounded-xl bg-muted hover:bg-muted/80 font-medium"
-                    >
-                      Cancel
-                    </button>
-                    <motion.button
                       onClick={handleSave}
-                      disabled={isSaving || !formData.name}
-                      className="flex-1 py-3 rounded-xl bg-primary text-primary-foreground font-medium flex items-center justify-center gap-2 disabled:opacity-50"
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.98 }}
+                      disabled={isSaving}
+                      className="flex-1 py-3 rounded-lg bg-gradient-to-r from-[#3B8FF3] to-[#34B1AA] text-white font-medium flex items-center justify-center gap-2 hover:opacity-90 transition-opacity disabled:opacity-50"
                     >
                       {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-                      {editingId ? "Update" : "Save Integration"}
-                    </motion.button>
+                      Save Configuration
+                    </button>
                   </div>
+
+                  {/* Test & Delete */}
+                  {integrations.some((i) => i.provider === selectedProvider) && (
+                    <div className="flex gap-3">
+                      <button
+                        onClick={() => handleTestConnection(selectedProvider)}
+                        className="flex-1 py-2 rounded-lg border border-[#34B1AA] text-[#34B1AA] font-medium flex items-center justify-center gap-2 hover:bg-[#34B1AA]/10 transition-colors"
+                      >
+                        <RefreshCw className="w-4 h-4" />
+                        Test Connection
+                      </button>
+                      <button
+                        onClick={() => handleDelete(selectedProvider)}
+                        className="py-2 px-4 rounded-lg border border-red-500 text-red-500 font-medium hover:bg-red-500/10 transition-colors"
+                      >
+                        Disconnect
+                      </button>
+                    </div>
+                  )}
                 </div>
-              )}
+
+                {/* Right: Tutor Panel */}
+                <div className="p-6 bg-muted/30 space-y-6">
+                  <div>
+                    <h3 className="font-semibold text-foreground flex items-center gap-2 mb-2">
+                      <HelpCircle className="w-4 h-4 text-[#F29F67]" />
+                      {currentConfig.guide.title}
+                    </h3>
+                    <p className="text-sm text-muted-foreground">{currentConfig.guide.description}</p>
+                  </div>
+
+                  {/* Steps */}
+                  <div className="space-y-3">
+                    <h4 className="text-sm font-medium text-foreground flex items-center gap-2">
+                      <Sparkles className="w-4 h-4 text-[#F29F67]" />
+                      Step-by-Step Guide
+                    </h4>
+                    <ol className="space-y-2">
+                      {currentConfig.guide.steps.map((step, idx) => (
+                        <li
+                          key={idx}
+                          className="flex gap-3 text-sm"
+                        >
+                          <span className="flex-shrink-0 w-6 h-6 rounded-full bg-[#F29F67]/20 text-[#F29F67] flex items-center justify-center text-xs font-medium">
+                            {idx + 1}
+                          </span>
+                          <span className="text-muted-foreground pt-0.5">{step}</span>
+                        </li>
+                      ))}
+                    </ol>
+                  </div>
+
+                  {/* Tips */}
+                  {currentConfig.guide.tips && currentConfig.guide.tips.length > 0 && (
+                    <div className="p-4 rounded-lg bg-[#3B8FF3]/10 border border-[#3B8FF3]/20">
+                      <h4 className="text-sm font-medium text-[#3B8FF3] flex items-center gap-2 mb-2">
+                        <Lightbulb className="w-4 h-4" />
+                        Pro Tips
+                      </h4>
+                      <ul className="space-y-1">
+                        {currentConfig.guide.tips.map((tip, idx) => (
+                          <li key={idx} className="text-sm text-muted-foreground flex items-start gap-2">
+                            <ChevronRight className="w-4 h-4 text-[#3B8FF3] flex-shrink-0 mt-0.5" />
+                            {tip}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {/* External Link */}
+                  {currentConfig.guide.link && (
+                    <a
+                      href={currentConfig.guide.link}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 text-sm text-[#3B8FF3] hover:underline"
+                    >
+                      <ExternalLink className="w-4 h-4" />
+                      {currentConfig.guide.linkText || "View Documentation"}
+                    </a>
+                  )}
+                </div>
+              </div>
             </motion.div>
           </motion.div>
         )}
