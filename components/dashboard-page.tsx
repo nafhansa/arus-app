@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { motion } from "framer-motion"
 import { Menu, LogOut, MessageCircle, Home, Brain, Zap, Settings } from "lucide-react"
+import { useAuth } from "@/contexts/auth-context"
 import DashboardContent from "./dashboard-content"
 import ChatWidget from "./chat-widget"
 import BrainView from "./brain-view"
@@ -10,13 +11,13 @@ import OpsView from "./ops-view"
 import SettingsView from "./settings-view"
 
 interface DashboardPageProps {
-  user: { name: string; email: string }
   onLogout: () => void
 }
 
 type ViewType = "dashboard" | "brain" | "ops" | "settings"
 
-export default function DashboardPage({ user, onLogout }: DashboardPageProps) {
+export default function DashboardPage({ onLogout }: DashboardPageProps) {
+  const { user } = useAuth()
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [currentView, setCurrentView] = useState<ViewType>("dashboard")
   const [chatOpen, setChatOpen] = useState(false)
@@ -27,6 +28,8 @@ export default function DashboardPage({ user, onLogout }: DashboardPageProps) {
     { id: "ops", label: "Auto-Ops", icon: Zap },
     { id: "settings", label: "Settings", icon: Settings },
   ]
+
+  const displayName = user?.businessName || user?.email?.split('@')[0] || 'User'
 
   return (
     <div className="flex h-screen bg-background text-foreground">
@@ -100,10 +103,10 @@ export default function DashboardPage({ user, onLogout }: DashboardPageProps) {
         <div className="h-20 bg-card border-b border-border px-8 flex items-center justify-between shadow-[var(--shadow-soft)]">
           <div>
             <h2 className="text-sm text-muted-foreground">Welcome back,</h2>
-            <p className="text-xl font-bold text-foreground">{user.name}</p>
+            <p className="text-xl font-bold text-foreground">{displayName}</p>
           </div>
           <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-white font-bold shadow-md">
-            {user.name.charAt(0)}
+            {displayName.charAt(0).toUpperCase()}
           </div>
         </div>
 

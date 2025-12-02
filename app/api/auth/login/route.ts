@@ -21,5 +21,12 @@ export async function POST(req: NextRequest) {
   if (!ok) return NextResponse.json({ error: "Invalid credentials" }, { status: 401 })
   const token = signToken({ sub: user.id, email: user.email })
   await setSessionCookie(token)
-  return NextResponse.json({ user: { id: user.id, email: user.email, businessName: user.businessName } })
+  return NextResponse.json({ 
+    user: { 
+      id: user.id, 
+      email: user.email, 
+      businessName: user.businessName,
+      country: user.country,
+    } 
+  })
 }

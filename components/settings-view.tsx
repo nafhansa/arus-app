@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { motion } from "framer-motion"
 import {
   Settings,
@@ -15,8 +15,11 @@ import {
   Languages,
   Sun,
   Moon,
+  Loader2,
+  Mail,
 } from "lucide-react"
 import { useTheme } from "@/contexts/theme-context"
+import { useAuth } from "@/contexts/auth-context"
 
 interface Language {
   code: string
@@ -25,12 +28,35 @@ interface Language {
 }
 
 export default function SettingsView() {
-  const [name, setName] = useState("John Doe")
-  const [businessName, setBusinessName] = useState("Toko Elektronik Jaya")
+  const { user, updateProfile } = useAuth()
+  const [businessName, setBusinessName] = useState("")
+  const [country, setCountry] = useState("Indonesia")
   const [selectedLanguage, setSelectedLanguage] = useState("id")
   const [pwaInstalled, setPwaInstalled] = useState(false)
   const [notifications, setNotifications] = useState(true)
+  const [isSaving, setIsSaving] = useState(false)
+  const [saveMessage, setSaveMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null)
   const { theme, toggleTheme } = useTheme()
+
+  // Load user data
+  useEffect(() => {
+    if (user) {
+      setBusinessName(user.businessName || "")
+      if (user.country) {
+        setCountry(user.country)
+        // Map country to language code
+        const countryToLang: Record<string, string> = {
+          'Indonesia': 'id',
+          'Malaysia': 'my',
+          'Singapore': 'sg',
+          'Vietnam': 'vn',
+          'Thailand': 'th',
+          'Philippines': 'ph',
+        }
+        setSelectedLanguage(countryToLang[user.country] || 'id')
+      }
+    }
+  }, [user])
 
   const languages: Language[] = [
     { code: "id", name: "Indonesia", flag: "🇮🇩" },
@@ -40,6 +66,36 @@ export default function SettingsView() {
     { code: "th", name: "Thailand", flag: "🇹🇭" },
     { code: "ph", name: "Philippines", flag: "🇵🇭" },
   ]
+
+  const handleSaveProfile = async () => {
+    setIsSaving(true)
+    setSaveMessage(null)
+    
+    const result = await updateProfile({ businessName, country })
+    
+    setIsSaving(false)
+    
+    if (result.success) {
+      setSaveMessage({ type: 'success', text: 'Profile saved successfully!' })
+      setTimeout(() => setSaveMessage(null), 3000)
+    } else {
+      setSaveMessage({ type: 'error', text: result.error || 'Failed to save' })
+    }
+  }
+
+  const handleLanguageChange = (langCode: string) => {
+    setSelectedLanguage(langCode)
+    // Map language code to country
+    const langToCountry: Record<string, string> = {
+      'id': 'Indonesia',
+      'my': 'Malaysia',
+      'sg': 'Singapore',
+      'vn': 'Vietnam',
+      'th': 'Thailand',
+      'ph': 'Philippines',
+    }
+    setCountry(langToCountry[langCode] || 'Indonesia')
+  }
 
   const handleInstallPwa = () => {
     setPwaInstalled(true)
@@ -75,14 +131,17 @@ export default function SettingsView() {
 
         <div className="space-y-4">
           <div>
-            <label className="block text-sm text-muted-foreground mb-2">Full Name</label>
+            <label className="block text-sm text-muted-foreground mb-2 flex items-center gap-2">
+              <Mail className="w-4 h-4" />
+              Email Address
+            </label>
             <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="w-full px-4 py-3 rounded-xl bg-input border border-border focus:border-[#F29F67] focus:outline-none transition-colors"
-              placeholder="Enter your name"
+              type="email"
+              value={user?.email || ""}
+              disabled
+              className="w-full px-4 py-3 rounded-xl bg-muted border border-border text-muted-foreground cursor-not-allowed"
             />
+            <p className="text-xs text-muted-foreground mt-1">Email cannot be changed</p>
           </div>
 
           <div>
@@ -99,13 +158,38 @@ export default function SettingsView() {
             />
           </div>
 
+          {saveMessage && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className={`p-3 rounded-lg ${
+                saveMessage.type === 'success' 
+                  ? 'bg-[#34B1AA]/20 text-[#34B1AA]' 
+                  : 'bg-destructive/20 text-destructive'
+              }`}
+            >
+              {saveMessage.text}
+            </motion.div>
+          )}
+
           <motion.button
-            className="mt-4 px-6 py-3 bg-[#F29F67] text-white font-medium rounded-xl flex items-center gap-2"
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
+            onClick={handleSaveProfile}
+            disabled={isSaving}
+            className="mt-4 px-6 py-3 bg-[#F29F67] text-white font-medium rounded-xl flex items-center gap-2 disabled:opacity-50"
+            whileHover={{ scale: isSaving ? 1 : 1.02 }}
+            whileTap={{ scale: isSaving ? 1 : 0.98 }}
           >
-            <Check className="w-4 h-4" />
-            Save Changes
+            {isSaving ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              <>
+                <Check className="w-4 h-4" />
+                Save Changes
+              </>
+            )}
           </motion.button>
         </div>
       </motion.div>
@@ -173,7 +257,7 @@ export default function SettingsView() {
           {languages.map((lang) => (
             <motion.button
               key={lang.code}
-              onClick={() => setSelectedLanguage(lang.code)}
+              onClick={() => handleLanguageChange(lang.code)}
               className={`p-4 rounded-xl border transition-all text-center ${
                 selectedLanguage === lang.code
                   ? "bg-[#34B1AA]/20 border-[#34B1AA]"

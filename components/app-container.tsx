@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import dynamic from "next/dynamic"
 import { ThemeProvider } from "@/contexts/theme-context"
+import { AuthProvider, useAuth } from "@/contexts/auth-context"
 import LoginPage from "@/components/login-page"
 import RegisterPage from "@/components/register-page"
 import DashboardPage from "@/components/dashboard-page"
@@ -20,8 +21,8 @@ const LandingPage = dynamic(() => import("@/components/landing-page"), {
 type ViewType = "landing" | "login" | "register" | "dashboard"
 
 function AppContent() {
+  const { user, isLoading, isAuthenticated, logout } = useAuth()
   const [view, setView] = useState<ViewType>("landing")
-  const [user, setUser] = useState<{ name: string; email: string } | null>(null)
   const [mounted, setMounted] = useState(false)
 
   // Prevent hydration mismatch
@@ -29,26 +30,31 @@ function AppContent() {
     setMounted(true)
   }, [])
 
+  // Auto-redirect to dashboard if authenticated
+  useEffect(() => {
+    if (!isLoading && isAuthenticated && view !== "dashboard") {
+      setView("dashboard")
+    }
+  }, [isLoading, isAuthenticated, view])
+
   const goToLogin = () => setView("login")
   const goToRegister = () => setView("register")
 
-  const handleLogin = (email: string) => {
-    setUser({ name: "Business Owner", email })
+  const handleLoginSuccess = () => {
     setView("dashboard")
   }
 
-  const handleRegister = (businessName: string, email: string) => {
-    setUser({ name: businessName, email })
+  const handleRegisterSuccess = () => {
     setView("dashboard")
   }
 
-  const handleLogout = () => {
-    setUser(null)
+  const handleLogout = async () => {
+    await logout()
     setView("landing")
   }
 
   // Show loading state until client-side hydration is complete
-  if (!mounted) {
+  if (!mounted || isLoading) {
     return (
       <main className="min-h-screen bg-background text-foreground flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
@@ -59,9 +65,9 @@ function AppContent() {
   return (
     <main className="min-h-screen bg-background text-foreground">
       {view === "landing" && <LandingPage onLaunchConsole={goToLogin} />}
-      {view === "login" && <LoginPage onLogin={handleLogin} onRegisterLink={goToRegister} />}
-      {view === "register" && <RegisterPage onRegister={handleRegister} onLoginLink={goToLogin} />}
-      {view === "dashboard" && user && <DashboardPage user={user} onLogout={handleLogout} />}
+      {view === "login" && <LoginPage onLoginSuccess={handleLoginSuccess} onRegisterLink={goToRegister} />}
+      {view === "register" && <RegisterPage onRegisterSuccess={handleRegisterSuccess} onLoginLink={goToLogin} />}
+      {view === "dashboard" && user && <DashboardPage onLogout={handleLogout} />}
     </main>
   )
 }
@@ -69,7 +75,9 @@ function AppContent() {
 export default function AppContainer() {
   return (
     <ThemeProvider>
-      <AppContent />
+      <AuthProvider>
+        <AppContent />
+      </AuthProvider>
     </ThemeProvider>
   )
 }

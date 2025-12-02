@@ -2,44 +2,37 @@
 
 import type React from "react"
 
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import { motion } from "framer-motion"
-import { Mail, Lock } from "lucide-react"
+import { Mail, Lock, Loader2 } from "lucide-react"
+import { useAuth } from "@/contexts/auth-context"
 
 interface LoginPageProps {
-  onLogin: (email: string) => void
+  onLoginSuccess: () => void
   onRegisterLink: () => void
 }
 
-export default function LoginPage({ onLogin, onRegisterLink }: LoginPageProps) {
+export default function LoginPage({ onLoginSuccess, onRegisterLink }: LoginPageProps) {
+  const { login } = useAuth()
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [error, setError] = useState<string | null>(null)
-  const [csrf, setCsrf] = useState<string>("")
-
-  useEffect(() => {
-    fetch('/api/auth/csrf')
-      .then(r => r.json())
-      .then(j => setCsrf(j.token))
-      .catch(() => {})
-  }, [])
+  const [isLoading, setIsLoading] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
-    const res = await fetch('/api/auth/login', { 
-      method: 'POST', 
-      headers: { 
-        'Content-Type': 'application/json', 
-        'X-CSRF-Token': csrf 
-      }, 
-      body: JSON.stringify({ email, password }) 
-    })
-    if (!res.ok) {
-      setError('Invalid credentials')
-      return
+    setIsLoading(true)
+
+    const result = await login(email, password)
+    
+    setIsLoading(false)
+    
+    if (result.success) {
+      onLoginSuccess()
+    } else {
+      setError(result.error || 'Login failed')
     }
-    onLogin(email)
   }
 
   return (
@@ -108,11 +101,19 @@ export default function LoginPage({ onLogin, onRegisterLink }: LoginPageProps) {
             {/* Submit Button */}
             <motion.button
               type="submit"
-              className="w-full py-3 bg-primary text-primary-foreground font-semibold rounded-lg hover:bg-primary/90 transition-colors duration-300"
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
+              disabled={isLoading}
+              className="w-full py-3 bg-primary text-primary-foreground font-semibold rounded-lg hover:bg-primary/90 transition-colors duration-300 disabled:opacity-50 flex items-center justify-center gap-2"
+              whileHover={{ scale: isLoading ? 1 : 1.02 }}
+              whileTap={{ scale: isLoading ? 1 : 0.98 }}
             >
-              Access Console
+              {isLoading ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  Signing in...
+                </>
+              ) : (
+                "Access Console"
+              )}
             </motion.button>
             {error && <p className="text-destructive text-sm text-center">{error}</p>}
           </form>

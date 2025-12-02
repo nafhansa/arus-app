@@ -1,6 +1,7 @@
 "use client"
 
 import useSWR from "swr"
+import { useAuth } from "@/contexts/auth-context"
 
 type AutomationConfig = Record<string, any>
 
@@ -21,8 +22,11 @@ export type DashboardResponse = {
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
-export function useAutomations(userId?: number) {
-  const key = `/api/automations?userId=${userId ?? 1}`
+export function useAutomations() {
+  const { user } = useAuth()
+  const userId = user?.id
+  const key = userId ? `/api/automations?userId=${userId}` : null
+  
   const { data, error, isLoading, mutate } = useSWR<{ recipes: AutomationRecipe[] }>(key, fetcher, {
     revalidateOnFocus: true,
     dedupingInterval: 5000,
@@ -50,8 +54,11 @@ export function useAutomations(userId?: number) {
   return { recipes: data?.recipes ?? [], isLoading, error, mutate, updateAutomation }
 }
 
-export function useDashboardData(userId?: number) {
-  const key = `/api/dashboard?userId=${userId ?? 1}`
+export function useDashboardData() {
+  const { user } = useAuth()
+  const userId = user?.id
+  const key = userId ? `/api/dashboard?userId=${userId}` : null
+  
   const { data, error, isLoading, mutate } = useSWR<DashboardResponse>(key, fetcher, {
     revalidateOnFocus: true,
     dedupingInterval: 5000,
