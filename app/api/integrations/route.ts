@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma"
 import { getSession } from "@/lib/auth"
 import { z } from "zod"
 import { INTEGRATION_PROVIDERS } from "@/lib/integration-guides"
+import { Prisma } from "@prisma/client"
 
 const upsertSchema = z.object({
   provider: z.string(),
@@ -60,25 +61,35 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid provider" }, { status: 400 })
   }
 
-  // Upsert - create or update based on userId + provider
-  const integration = await prisma.integration.upsert({
-    where: {
-      userId_provider: { userId, provider: providerUpper },
-    },
-    update: {
-      name,
-      credentials,
-      isActive: true,
-      updatedAt: new Date(),
-    },
-    create: {
-      provider: providerUpper,
-      name,
-      credentials,
-      isActive: true,
-      userId,
-    },
+  // Check if integration already exists for this user + provider
+  const existing = await prisma.integration.findFirst({
+    where: { userId, provider: providerUpper },
   })
+
+  let integration
+
+  if (existing) {
+    // Update existing
+    integration = await prisma.integration.update({
+      where: { id: existing.id },
+      data: {
+        name,
+        credentials: credentials as Prisma.InputJsonValue,
+        isActive: true,
+      },
+    })
+  } else {
+    // Create new
+    integration = await prisma.integration.create({
+      data: {
+        provider: providerUpper,
+        name,
+        credentials: credentials as Prisma.InputJsonValue,
+        isActive: true,
+        userId,
+      },
+    })
+  }
 
   return NextResponse.json({ integration })
 }
