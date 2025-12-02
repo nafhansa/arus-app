@@ -22,16 +22,36 @@ model User {
   revenues     RevenueData[]
   channels     SalesChannel[]
   orders       Order[]
+  integrations Integration[]
+}
+
+model Integration {
+  id          Int      @id @default(autoincrement())
+  type        String   // whatsapp, email, sms, telegram, shopee, tokopedia
+  name        String   // Display name e.g. "WhatsApp Bisnis Utama"
+  config      Json     // Stores credentials/settings based on type
+  isConnected Boolean  @default(false)
+  lastSyncAt  DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  userId Int
+  user   User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([type])
 }
 
 model AutomationRecipe {
-  id        Int      @id @default(autoincrement())
-  title     String
-  enabled   Boolean  @default(false)
-  config    Json
-  category  String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id            Int      @id @default(autoincrement())
+  title         String
+  description   String?
+  enabled       Boolean  @default(false)
+  config        Json     // Trigger settings, thresholds, etc.
+  category      String
+  integrationId Int?     // Which integration to use (optional)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   userId Int
   user   User   @relation(fields: [userId], references: [id])

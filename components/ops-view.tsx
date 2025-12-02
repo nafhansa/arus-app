@@ -1,9 +1,29 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useAutomations } from "@/lib/hooks"
 import { motion, AnimatePresence } from "framer-motion"
-import { Zap, MessageSquare, Package, TrendingDown, Bell, Clock, ShoppingCart, Truck, DollarSign, Mail, Calendar, Settings, X, Save, Sliders } from "lucide-react"
+import {
+  Zap,
+  MessageSquare,
+  Package,
+  TrendingDown,
+  Bell,
+  Clock,
+  ShoppingCart,
+  Truck,
+  DollarSign,
+  Mail,
+  Calendar,
+  Settings,
+  X,
+  Save,
+  Sliders,
+  Link2,
+  AlertCircle,
+  Loader2,
+} from "lucide-react"
+import { useAuth } from "@/contexts/auth-context"
 
 type AutomationConfig = {
   threshold?: number
@@ -11,22 +31,104 @@ type AutomationConfig = {
   message?: string
   channels?: string[]
   frequency?: string
+  integrationId?: number
+  triggerOn?: string
+  recipients?: string
+  schedule?: string
+}
+
+type Integration = {
+  id: number
+  type: string
+  name: string
+  isConnected: boolean
 }
 
 type UIRecipe = {
   id: number
   title: string
+  description?: string
   enabled: boolean
   category: string
   config: AutomationConfig
+  integrationId?: number
   icon: typeof MessageSquare
-  description?: string
+}
+
+// Automation templates with descriptions
+const AUTOMATION_TEMPLATES: Record<string, {
+  description: string
+  configFields: string[]
+  requiredIntegration?: string[]
+}> = {
+  "Auto-Reply WhatsApp": {
+    description: "Automatically reply to incoming WhatsApp messages",
+    configFields: ["message", "delay", "integrationId"],
+    requiredIntegration: ["whatsapp"],
+  },
+  "Low Stock Alert": {
+    description: "Get notified when inventory drops below threshold",
+    configFields: ["threshold", "channels", "recipients"],
+    requiredIntegration: ["email", "whatsapp", "telegram"],
+  },
+  "Flash Sale Trigger": {
+    description: "Automatically start flash sale on low traffic",
+    configFields: ["threshold", "delay", "channels"],
+  },
+  "Order Confirmation SMS": {
+    description: "Send SMS confirmation for new orders",
+    configFields: ["message", "integrationId"],
+    requiredIntegration: ["sms"],
+  },
+  "Shipping Status Updates": {
+    description: "Notify customers about shipping status changes",
+    configFields: ["channels", "frequency", "integrationId"],
+    requiredIntegration: ["email", "whatsapp", "sms"],
+  },
+  "Daily Sales Report": {
+    description: "Receive daily sales summary via email",
+    configFields: ["schedule", "recipients", "integrationId"],
+    requiredIntegration: ["email"],
+  },
+  "Price Drop Alert": {
+    description: "Notify when competitor prices change",
+    configFields: ["threshold", "channels", "frequency"],
+  },
+  "Restock Reminder": {
+    description: "Automated reminders to restock products",
+    configFields: ["threshold", "schedule", "channels"],
+  },
 }
 
 export default function OpsView() {
+  const { user } = useAuth()
   const { recipes: dbRecipes, updateAutomation } = useAutomations()
   const [configModalOpen, setConfigModalOpen] = useState<number | null>(null)
   const [tempConfig, setTempConfig] = useState<AutomationConfig>({})
+  const [integrations, setIntegrations] = useState<Integration[]>([])
+  const [isLoadingIntegrations, setIsLoadingIntegrations] = useState(true)
+  const [isSaving, setIsSaving] = useState(false)
+
+  // Fetch integrations
+  useEffect(() => {
+    if (!user) return
+
+    const fetchIntegrations = async () => {
+      try {
+        const res = await fetch("/api/integrations")
+        if (res.ok) {
+          const data = await res.json()
+          setIntegrations(data.integrations || [])
+        }
+      } catch (error) {
+        console.error("Failed to fetch integrations:", error)
+      } finally {
+        setIsLoadingIntegrations(false)
+      }
+    }
+
+    fetchIntegrations()
+  }, [user])
 
   const iconFor = (category: string, title: string) => {
     const key = `${category}:${title}`.toLowerCase()
@@ -48,8 +150,20 @@ export default function OpsView() {
     category: r.category,
     config: r.config as AutomationConfig,
     icon: iconFor(r.category, r.title),
-    description: undefined,
+    description: AUTOMATION_TEMPLATES[r.title]?.description,
+    integrationId: (r.config as AutomationConfig)?.integrationId,
   }))
+
+  // Check if required integration is connected
+  const hasRequiredIntegration = (recipe: UIRecipe) => {
+    const template = AUTOMATION_TEMPLATES[recipe.title]
+    if (!template?.requiredIntegration) return true
+    return template.requiredIntegration.some((type) =>
+      integrations.some((i) => i.type === type && i.isConnected)
+    )
+  }
+
+  const connectedIntegrations = integrations.filter((i) => i.isConnected)
 
   const toggleRecipe = async (id: number, enabled: boolean) => {
     await updateAutomation(id, { enabled: !enabled })
@@ -71,6 +185,7 @@ export default function OpsView() {
   const activeCount = recipes.filter((r) => r.enabled).length
 
   const currentRecipe = recipes.find((r) => r.id === configModalOpen)
+  const currentTemplate = currentRecipe ? AUTOMATION_TEMPLATES[currentRecipe.title] : null
 
   return (
     <div className="space-y-8">
@@ -93,6 +208,28 @@ export default function OpsView() {
         </div>
       </div>
 
+      {/* Integration Warning */}
+      {connectedIntegrations.length === 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="p-4 rounded-xl bg-[#F29F67]/10 border border-[#F29F67]/30 flex items-start gap-4"
+        >
+          <div className="w-10 h-10 rounded-lg bg-[#F29F67]/20 flex items-center justify-center flex-shrink-0">
+            <Link2 className="w-5 h-5 text-[#F29F67]" />
+          </div>
+          <div className="flex-1">
+            <p className="font-medium text-foreground">No Integrations Connected</p>
+            <p className="text-sm text-muted-foreground mt-1">
+              To enable automations like WhatsApp auto-reply or Email notifications, you need to connect your accounts first.
+            </p>
+            <p className="text-sm text-[#F29F67] mt-2">
+              Go to <strong>Integrations</strong> in the sidebar to connect WhatsApp, Email, SMS, and more.
+            </p>
+          </div>
+        </motion.div>
+      )}
+
       {/* Stats Row */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
@@ -101,10 +238,10 @@ export default function OpsView() {
         className="grid grid-cols-2 md:grid-cols-4 gap-4"
       >
         {[
-          { label: "Tasks Automated Today", value: "247", color: "#F29F67" },
-          { label: "Time Saved", value: "12.5h", color: "#34B1AA" },
-          { label: "Messages Sent", value: "89", color: "#3B8FF3" },
-          { label: "Alerts Triggered", value: "14", color: "#F29F67" },
+          { label: "Active Automations", value: activeCount.toString(), color: "#F29F67" },
+          { label: "Connected Integrations", value: connectedIntegrations.length.toString(), color: "#34B1AA" },
+          { label: "Tasks Today", value: "—", color: "#3B8FF3" },
+          { label: "Messages Sent", value: "—", color: "#F29F67" },
         ].map((stat, idx) => (
           <div key={idx} className="p-4 rounded-xl bg-card border border-border shadow-[var(--shadow-soft)]">
             <div className="text-2xl font-bold" style={{ color: stat.color }}>
@@ -131,94 +268,121 @@ export default function OpsView() {
             <div className="space-y-2">
               {recipes
                 .filter((r) => r.category === category)
-                .map((recipe, idx) => (
-                  <motion.div
-                    key={recipe.id}
-                    layout
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: 0.1 * idx }}
-                    className={`p-4 rounded-2xl border transition-all duration-300 ${
-                      recipe.enabled
-                        ? "bg-secondary/5 border-secondary/30 shadow-sm"
-                        : "bg-card border-border hover:bg-muted/50 shadow-[var(--shadow-soft)]"
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-4">
-                        <div
-                          className={`w-12 h-12 rounded-xl flex items-center justify-center transition-colors ${
-                            recipe.enabled ? "bg-secondary/20" : "bg-muted"
-                          }`}
-                        >
-                          <recipe.icon
-                            className={`w-6 h-6 ${recipe.enabled ? "text-secondary" : "text-muted-foreground"}`}
-                          />
-                        </div>
-                        <div>
-                          <h4 className={`font-medium ${recipe.enabled ? "text-foreground" : "text-muted-foreground"}`}>
-                            {recipe.title}
-                          </h4>
-                          <p className="text-sm text-muted-foreground">{recipe.description}</p>
-                        </div>
-                      </div>
+                .map((recipe, idx) => {
+                  const needsIntegration = !hasRequiredIntegration(recipe)
+                  const template = AUTOMATION_TEMPLATES[recipe.title]
 
-                      <div className="flex items-center gap-3">
-                        {/* Config Button */}
-                        <motion.button
-                          onClick={() => openConfigModal(recipe)}
-                          className="p-2 rounded-lg bg-muted hover:bg-muted/80 transition-colors"
-                          whileHover={{ scale: 1.05 }}
-                          whileTap={{ scale: 0.95 }}
-                        >
-                          <Sliders className="w-5 h-5 text-muted-foreground" />
-                        </motion.button>
-
-                        {/* Toggle Switch */}
-                        <motion.button
-                          onClick={() => toggleRecipe(recipe.id, recipe.enabled)}
-                          className={`relative w-14 h-8 rounded-full transition-colors duration-300 ${
-                            recipe.enabled ? "bg-secondary" : "bg-muted"
-                          }`}
-                          whileTap={{ scale: 0.95 }}
-                        >
-                          <motion.div
-                            layout
-                            className="absolute top-1 w-6 h-6 rounded-full bg-white shadow-md"
-                            animate={{
-                              left: recipe.enabled ? "calc(100% - 28px)" : "4px",
-                            }}
-                            transition={{ type: "spring", stiffness: 500, damping: 30 }}
-                          />
-                        </motion.button>
-                      </div>
-                    </div>
-
-                    {/* Expanded details when enabled */}
-                    <AnimatePresence>
-                      {recipe.enabled && (
-                        <motion.div
-                          initial={{ height: 0, opacity: 0 }}
-                          animate={{ height: "auto", opacity: 1 }}
-                          exit={{ height: 0, opacity: 0 }}
-                          transition={{ duration: 0.3 }}
-                          className="overflow-hidden"
-                        >
-                          <div className="pt-4 mt-4 border-t border-secondary/20 flex items-center gap-4 text-sm">
-                            <div className="flex items-center gap-1 text-secondary">
-                              <Bell className="w-4 h-4" />
-                              <span>Active</span>
-                            </div>
-                            <div className="flex items-center gap-1 text-muted-foreground">
-                              <Clock className="w-4 h-4" />
-                              <span>Last triggered: 2 hours ago</span>
-                            </div>
+                  return (
+                    <motion.div
+                      key={recipe.id}
+                      layout
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: 0.1 * idx }}
+                      className={`p-4 rounded-2xl border transition-all duration-300 ${
+                        recipe.enabled
+                          ? "bg-secondary/5 border-secondary/30 shadow-sm"
+                          : "bg-card border-border hover:bg-muted/50 shadow-[var(--shadow-soft)]"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-4">
+                          <div
+                            className={`w-12 h-12 rounded-xl flex items-center justify-center transition-colors ${
+                              recipe.enabled ? "bg-secondary/20" : "bg-muted"
+                            }`}
+                          >
+                            <recipe.icon
+                              className={`w-6 h-6 ${recipe.enabled ? "text-secondary" : "text-muted-foreground"}`}
+                            />
                           </div>
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-                  </motion.div>
-                ))}
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <h4 className={`font-medium ${recipe.enabled ? "text-foreground" : "text-muted-foreground"}`}>
+                                {recipe.title}
+                              </h4>
+                              {needsIntegration && (
+                                <span className="px-2 py-0.5 rounded-full bg-[#F29F67]/20 text-[#F29F67] text-xs flex items-center gap-1">
+                                  <AlertCircle className="w-3 h-3" />
+                                  Needs Integration
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-sm text-muted-foreground">{recipe.description}</p>
+                            {template?.requiredIntegration && (
+                              <p className="text-xs text-muted-foreground mt-1">
+                                Requires: {template.requiredIntegration.join(", ")}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-3">
+                          {/* Config Button */}
+                          <motion.button
+                            onClick={() => openConfigModal(recipe)}
+                            className="p-2 rounded-lg bg-muted hover:bg-muted/80 transition-colors"
+                            whileHover={{ scale: 1.05 }}
+                            whileTap={{ scale: 0.95 }}
+                          >
+                            <Sliders className="w-5 h-5 text-muted-foreground" />
+                          </motion.button>
+
+                          {/* Toggle Switch */}
+                          <motion.button
+                            onClick={() => !needsIntegration && toggleRecipe(recipe.id, recipe.enabled)}
+                            disabled={needsIntegration}
+                            className={`relative w-14 h-8 rounded-full transition-colors duration-300 ${
+                              recipe.enabled ? "bg-secondary" : "bg-muted"
+                            } ${needsIntegration ? "opacity-50 cursor-not-allowed" : ""}`}
+                            whileTap={needsIntegration ? {} : { scale: 0.95 }}
+                          >
+                            <motion.div
+                              layout
+                              className="absolute top-1 w-6 h-6 rounded-full bg-white shadow-md"
+                              animate={{
+                                left: recipe.enabled ? "calc(100% - 28px)" : "4px",
+                              }}
+                              transition={{ type: "spring", stiffness: 500, damping: 30 }}
+                            />
+                          </motion.button>
+                        </div>
+                      </div>
+
+                      {/* Expanded details when enabled */}
+                      <AnimatePresence>
+                        {recipe.enabled && (
+                          <motion.div
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: "auto", opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            transition={{ duration: 0.3 }}
+                            className="overflow-hidden"
+                          >
+                            <div className="pt-4 mt-4 border-t border-secondary/20 flex flex-wrap items-center gap-4 text-sm">
+                              <div className="flex items-center gap-1 text-secondary">
+                                <Bell className="w-4 h-4" />
+                                <span>Active</span>
+                              </div>
+                              {recipe.config.integrationId && (
+                                <div className="flex items-center gap-1 text-muted-foreground">
+                                  <Link2 className="w-4 h-4" />
+                                  <span>
+                                    {integrations.find((i) => i.id === recipe.config.integrationId)?.name || "Connected"}
+                                  </span>
+                                </div>
+                              )}
+                              <div className="flex items-center gap-1 text-muted-foreground">
+                                <Clock className="w-4 h-4" />
+                                <span>Last triggered: Never</span>
+                              </div>
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </motion.div>
+                  )
+                })}
             </div>
           </motion.div>
         ))}
@@ -261,47 +425,136 @@ export default function OpsView() {
 
               {/* Config Fields */}
               <div className="space-y-4">
-                {tempConfig.threshold !== undefined && (
+                {/* Integration Selector */}
+                {currentTemplate?.requiredIntegration && (
+                  <div>
+                    <label className="text-sm text-muted-foreground mb-2 block">
+                      Select Integration *
+                    </label>
+                    <select
+                      value={tempConfig.integrationId || ""}
+                      onChange={(e) =>
+                        setTempConfig({ ...tempConfig, integrationId: Number(e.target.value) || undefined })
+                      }
+                      className="w-full px-4 py-3 rounded-xl bg-input border border-border text-foreground"
+                    >
+                      <option value="">-- Select Integration --</option>
+                      {integrations
+                        .filter((i) => currentTemplate.requiredIntegration?.includes(i.type))
+                        .map((integration) => (
+                          <option key={integration.id} value={integration.id}>
+                            {integration.name} {integration.isConnected ? "✓" : "(Not Connected)"}
+                          </option>
+                        ))}
+                    </select>
+                    {integrations.filter((i) => currentTemplate.requiredIntegration?.includes(i.type)).length === 0 && (
+                      <p className="text-xs text-[#F29F67] mt-2">
+                        No matching integration found. Go to Integrations to add one.
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {/* Recipients */}
+                {currentTemplate?.configFields.includes("recipients") && (
+                  <div>
+                    <label className="text-sm text-muted-foreground mb-2 block">
+                      Recipients (comma separated)
+                    </label>
+                    <input
+                      type="text"
+                      value={tempConfig.recipients || ""}
+                      onChange={(e) => setTempConfig({ ...tempConfig, recipients: e.target.value })}
+                      placeholder="email@example.com, +6281234567890"
+                      className="w-full px-4 py-3 rounded-xl bg-input border border-border text-foreground"
+                    />
+                  </div>
+                )}
+
+                {/* Threshold */}
+                {currentTemplate?.configFields.includes("threshold") && (
                   <div>
                     <label className="text-sm text-muted-foreground mb-2 block">Threshold</label>
                     <input
                       type="number"
-                      value={tempConfig.threshold}
+                      value={tempConfig.threshold || ""}
                       onChange={(e) => setTempConfig({ ...tempConfig, threshold: Number(e.target.value) })}
-                      className="w-full px-4 py-3 rounded-xl bg-input border border-border text-foreground focus:border-secondary focus:ring-2 focus:ring-secondary/20 focus:outline-none transition-all"
+                      placeholder="e.g., 10 for low stock"
+                      className="w-full px-4 py-3 rounded-xl bg-input border border-border text-foreground"
                     />
                   </div>
                 )}
 
-                {tempConfig.delay !== undefined && (
+                {/* Delay */}
+                {currentTemplate?.configFields.includes("delay") && (
                   <div>
                     <label className="text-sm text-muted-foreground mb-2 block">Delay (minutes)</label>
                     <input
                       type="number"
-                      value={tempConfig.delay}
+                      value={tempConfig.delay || ""}
                       onChange={(e) => setTempConfig({ ...tempConfig, delay: Number(e.target.value) })}
-                      className="w-full px-4 py-3 rounded-xl bg-input border border-border text-foreground focus:border-secondary focus:ring-2 focus:ring-secondary/20 focus:outline-none transition-all"
+                      placeholder="e.g., 5"
+                      className="w-full px-4 py-3 rounded-xl bg-input border border-border text-foreground"
                     />
                   </div>
                 )}
 
-                {tempConfig.message !== undefined && (
+                {/* Message */}
+                {currentTemplate?.configFields.includes("message") && (
                   <div>
                     <label className="text-sm text-muted-foreground mb-2 block">Message Template</label>
                     <textarea
-                      value={tempConfig.message}
+                      value={tempConfig.message || ""}
                       onChange={(e) => setTempConfig({ ...tempConfig, message: e.target.value })}
                       rows={3}
-                      className="w-full px-4 py-3 rounded-xl bg-input border border-border text-foreground focus:border-secondary focus:ring-2 focus:ring-secondary/20 focus:outline-none transition-all resize-none"
+                      placeholder="Hi {customer_name}, thank you for your order..."
+                      className="w-full px-4 py-3 rounded-xl bg-input border border-border text-foreground resize-none"
                     />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Variables: {"{{customer_name}}"}, {"{{order_id}}"}, {"{{product_name}}"}
+                    </p>
                   </div>
                 )}
 
-                {tempConfig.channels !== undefined && (
+                {/* Schedule */}
+                {currentTemplate?.configFields.includes("schedule") && (
+                  <div>
+                    <label className="text-sm text-muted-foreground mb-2 block">Schedule</label>
+                    <select
+                      value={tempConfig.schedule || "daily"}
+                      onChange={(e) => setTempConfig({ ...tempConfig, schedule: e.target.value })}
+                      className="w-full px-4 py-3 rounded-xl bg-input border border-border text-foreground"
+                    >
+                      <option value="hourly">Every Hour</option>
+                      <option value="daily">Daily (9 AM)</option>
+                      <option value="weekly">Weekly (Monday 9 AM)</option>
+                      <option value="monthly">Monthly (1st day)</option>
+                    </select>
+                  </div>
+                )}
+
+                {/* Frequency */}
+                {currentTemplate?.configFields.includes("frequency") && (
+                  <div>
+                    <label className="text-sm text-muted-foreground mb-2 block">Frequency</label>
+                    <select
+                      value={tempConfig.frequency || "immediately"}
+                      onChange={(e) => setTempConfig({ ...tempConfig, frequency: e.target.value })}
+                      className="w-full px-4 py-3 rounded-xl bg-input border border-border text-foreground"
+                    >
+                      <option value="immediately">Immediately</option>
+                      <option value="batch">Batch (every hour)</option>
+                      <option value="daily">Daily summary</option>
+                    </select>
+                  </div>
+                )}
+
+                {/* Notification Channels */}
+                {currentTemplate?.configFields.includes("channels") && (
                   <div>
                     <label className="text-sm text-muted-foreground mb-2 block">Notification Channels</label>
                     <div className="flex flex-wrap gap-2">
-                      {["email", "sms", "whatsapp", "push"].map((channel) => (
+                      {["email", "sms", "whatsapp", "telegram", "push"].map((channel) => (
                         <button
                           key={channel}
                           onClick={() => {
@@ -324,18 +577,6 @@ export default function OpsView() {
                     </div>
                   </div>
                 )}
-
-                {tempConfig.frequency !== undefined && (
-                  <div>
-                    <label className="text-sm text-muted-foreground mb-2 block">Frequency</label>
-                    <input
-                      type="text"
-                      value={tempConfig.frequency}
-                      onChange={(e) => setTempConfig({ ...tempConfig, frequency: e.target.value })}
-                      className="w-full px-4 py-3 rounded-xl bg-input border border-border text-foreground focus:border-secondary focus:ring-2 focus:ring-secondary/20 focus:outline-none transition-all"
-                    />
-                  </div>
-                )}
               </div>
 
               {/* Modal Actions */}
@@ -348,11 +589,12 @@ export default function OpsView() {
                 </button>
                 <motion.button
                   onClick={saveConfig}
-                  className="flex-1 py-3 rounded-xl bg-secondary hover:bg-secondary/90 transition-colors font-medium text-white flex items-center justify-center gap-2 shadow-md"
+                  disabled={isSaving}
+                  className="flex-1 py-3 rounded-xl bg-secondary hover:bg-secondary/90 transition-colors font-medium text-white flex items-center justify-center gap-2 shadow-md disabled:opacity-50"
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                 >
-                  <Save className="w-4 h-4" />
+                  {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                   Save Changes
                 </motion.button>
               </div>

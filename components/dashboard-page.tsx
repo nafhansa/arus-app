@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { motion } from "framer-motion"
-import { Menu, LogOut, MessageCircle, Home, Brain, Zap, Settings, Database } from "lucide-react"
+import { Menu, LogOut, MessageCircle, Home, Brain, Zap, Settings, Database, Link2 } from "lucide-react"
 import { useAuth } from "@/contexts/auth-context"
 import DashboardContent from "./dashboard-content"
 import ChatWidget from "./chat-widget"
@@ -10,12 +10,13 @@ import BrainView from "./brain-view"
 import OpsView from "./ops-view"
 import SettingsView from "./settings-view"
 import BusinessDataView from "./business-data-view"
+import IntegrationsView from "./integrations-view"
 
 interface DashboardPageProps {
   onLogout: () => void
 }
 
-type ViewType = "dashboard" | "brain" | "ops" | "business" | "settings"
+type ViewType = "dashboard" | "brain" | "ops" | "business" | "integrations" | "settings"
 
 export default function DashboardPage({ onLogout }: DashboardPageProps) {
   const { user } = useAuth()
@@ -27,6 +28,7 @@ export default function DashboardPage({ onLogout }: DashboardPageProps) {
     { id: "dashboard", label: "Dashboard", icon: Home },
     { id: "brain", label: "AI Brain", icon: Brain },
     { id: "ops", label: "Auto-Ops", icon: Zap },
+    { id: "integrations", label: "Integrations", icon: Link2 },
     { id: "business", label: "Business Data", icon: Database },
     { id: "settings", label: "Settings", icon: Settings },
   ]
@@ -124,6 +126,7 @@ export default function DashboardPage({ onLogout }: DashboardPageProps) {
             {currentView === "dashboard" && <DashboardContent />}
             {currentView === "brain" && <BrainView />}
             {currentView === "ops" && <OpsView />}
+            {currentView === "integrations" && <IntegrationsView />}
             {currentView === "business" && <BusinessDataView />}
             {currentView === "settings" && <SettingsView />}
           </motion.div>
