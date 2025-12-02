@@ -20,6 +20,8 @@ model User {
   recipes      AutomationRecipe[]
   insights     Insight[]
   revenues     RevenueData[]
+  channels     SalesChannel[]
+  orders       Order[]
 }
 
 model AutomationRecipe {
@@ -60,12 +62,44 @@ model Insight {
 model RevenueData {
   id        Int      @id @default(autoincrement())
   month     String
-  revenue   Int
-  cost      Int
+  year      Int      @default(2024)
+  revenue   Int      @default(0)
+  cost      Int      @default(0)
+  orders    Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  userId Int
+  user   User @relation(fields: [userId], references: [id])
+
+  @@unique([userId, month, year])
+  @@index([userId])
+}
+
+model SalesChannel {
+  id        Int      @id @default(autoincrement())
+  name      String
+  icon      String   @default("🛒")
+  enabled   Boolean  @default(true)
   createdAt DateTime @default(now())
 
   userId Int
   user   User @relation(fields: [userId], references: [id])
 
   @@index([userId])
+}
+
+model Order {
+  id          Int      @id @default(autoincrement())
+  orderNumber String
+  amount      Int
+  status      String   @default("pending")
+  channel     String?
+  createdAt   DateTime @default(now())
+
+  userId Int
+  user   User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([createdAt])
 }

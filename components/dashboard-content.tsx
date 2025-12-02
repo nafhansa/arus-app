@@ -1,21 +1,80 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import { motion } from "framer-motion"
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts"
-import { ShoppingCart, TrendingUp, Globe } from "lucide-react"
+import { ShoppingCart, TrendingUp, Globe, Database } from "lucide-react"
 import { useDashboardData } from "@/lib/hooks"
+import { useAuth } from "@/contexts/auth-context"
 
-const channels = [
-  { name: "Shopee", icon: "🛒" },
-  { name: "Tokopedia", icon: "🏪" },
-  { name: "Lazada", icon: "📦" },
-  { name: "TikTok Shop", icon: "📱" },
-]
+interface SalesChannel {
+  id: number
+  name: string
+  icon: string
+  enabled: boolean
+}
+
+interface RevenueData {
+  month: string
+  year: number
+  revenue: number
+  cost: number
+  orders: number
+}
 
 export default function DashboardContent() {
+  const { user } = useAuth()
   const { data } = useDashboardData()
-  const revenueData = (data?.revenue ?? []).map((r) => ({ month: r.month, revenue: r.revenue }))
+  const [channels, setChannels] = useState<SalesChannel[]>([])
+  const [revenueStats, setRevenueStats] = useState<RevenueData[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+
+  // Fetch real business data
+  useEffect(() => {
+    if (!user) return
+
+    const fetchBusinessData = async () => {
+      setIsLoading(true)
+      try {
+        const currentYear = new Date().getFullYear()
+        const [revenueRes, channelsRes] = await Promise.all([
+          fetch(`/api/business/revenue?year=${currentYear}`),
+          fetch("/api/business/channels"),
+        ])
+
+        if (revenueRes.ok) {
+          const data = await revenueRes.json()
+          setRevenueStats(data.revenues || [])
+        }
+
+        if (channelsRes.ok) {
+          const data = await channelsRes.json()
+          setChannels(data.channels || [])
+        }
+      } catch (error) {
+        console.error("Failed to fetch business data:", error)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    fetchBusinessData()
+  }, [user])
+
+  // Calculate totals from real data
+  const totalRevenue = revenueStats.reduce((sum, r) => sum + (r.revenue || 0), 0)
+  const totalCost = revenueStats.reduce((sum, r) => sum + (r.cost || 0), 0)
+  const totalProfit = totalRevenue - totalCost
+  const totalOrders = revenueStats.reduce((sum, r) => sum + (r.orders || 0), 0)
+  const activeChannels = channels.filter((c) => c.enabled)
+
+  // Use API revenue data or fallback to dashboard data
+  const revenueData = revenueStats.length > 0
+    ? revenueStats.map((r) => ({ month: r.month, revenue: r.revenue }))
+    : (data?.revenue ?? []).map((r) => ({ month: r.month, revenue: r.revenue }))
+
   const activityLog = data?.activity ?? []
+  
   const containerVariants = {
     hidden: { opacity: 0 },
     visible: {
@@ -35,8 +94,30 @@ export default function DashboardContent() {
     },
   }
 
+  // Check if user has business data
+  const hasBusinessData = revenueStats.length > 0 && (totalRevenue > 0 || totalOrders > 0)
+
   return (
     <motion.div variants={containerVariants} initial="hidden" animate="visible" className="space-y-6">
+      {/* No Data Banner */}
+      {!isLoading && !hasBusinessData && (
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-[#3B8FF3]/10 border border-[#3B8FF3]/30 rounded-xl p-4 flex items-center gap-4"
+        >
+          <div className="w-10 h-10 rounded-lg bg-[#3B8FF3]/20 flex items-center justify-center">
+            <Database className="w-5 h-5 text-[#3B8FF3]" />
+          </div>
+          <div className="flex-1">
+            <p className="font-medium text-foreground">No business data yet</p>
+            <p className="text-sm text-muted-foreground">
+              Go to <span className="font-semibold text-[#3B8FF3]">Business Data</span> in the sidebar to input your revenue, costs, and sales channels.
+            </p>
+          </div>
+        </motion.div>
+      )}
+
       {/* Stats Row */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <motion.div
@@ -46,7 +127,9 @@ export default function DashboardContent() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-muted-foreground text-sm">Total Profit</p>
-              <p className="text-3xl font-bold text-secondary">$127,450</p>
+              <p className={`text-3xl font-bold ${totalProfit >= 0 ? "text-secondary" : "text-destructive"}`}>
+                ${totalProfit.toLocaleString()}
+              </p>
             </div>
             <div className="w-12 h-12 rounded-xl bg-secondary/10 flex items-center justify-center">
               <TrendingUp className="w-6 h-6 text-secondary" />
@@ -60,8 +143,8 @@ export default function DashboardContent() {
         >
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-muted-foreground text-sm">Orders This Month</p>
-              <p className="text-3xl font-bold text-accent">1,284</p>
+              <p className="text-muted-foreground text-sm">Total Orders</p>
+              <p className="text-3xl font-bold text-accent">{totalOrders.toLocaleString()}</p>
             </div>
             <div className="w-12 h-12 rounded-xl bg-accent/10 flex items-center justify-center">
               <ShoppingCart className="w-6 h-6 text-accent" />
@@ -76,7 +159,7 @@ export default function DashboardContent() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-muted-foreground text-sm">Active Channels</p>
-              <p className="text-3xl font-bold text-primary">{channels.length}</p>
+              <p className="text-3xl font-bold text-primary">{activeChannels.length}</p>
             </div>
             <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center">
               <Globe className="w-6 h-6 text-primary" />
@@ -154,17 +237,25 @@ export default function DashboardContent() {
           className="bg-card p-6 rounded-xl border border-border shadow-[var(--shadow-soft)]"
         >
           <h3 className="text-lg font-bold mb-4 text-foreground">Active Channels</h3>
-          <div className="grid grid-cols-2 gap-3">
-            {channels.map((channel, idx) => (
-              <div
-                key={idx}
-                className="p-4 rounded-lg bg-muted/50 border border-border text-center hover:bg-muted hover:shadow-sm transition-all cursor-pointer"
-              >
-                <div className="text-2xl mb-2">{channel.icon}</div>
-                <p className="text-xs font-medium text-foreground">{channel.name}</p>
-              </div>
-            ))}
-          </div>
+          {activeChannels.length > 0 ? (
+            <div className="grid grid-cols-2 gap-3">
+              {activeChannels.map((channel) => (
+                <div
+                  key={channel.id}
+                  className="p-4 rounded-lg bg-muted/50 border border-border text-center hover:bg-muted hover:shadow-sm transition-all cursor-pointer"
+                >
+                  <div className="text-2xl mb-2">{channel.icon}</div>
+                  <p className="text-xs font-medium text-foreground">{channel.name}</p>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-8 text-muted-foreground">
+              <Globe className="w-10 h-10 mx-auto mb-2 opacity-50" />
+              <p className="text-sm">No channels yet</p>
+              <p className="text-xs">Add them in Business Data</p>
+            </div>
+          )}
         </motion.div>
 
         {/* Expansion Radar */}
